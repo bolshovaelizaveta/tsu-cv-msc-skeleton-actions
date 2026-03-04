@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# IDEA
+.vscode/
+.idea/
+
+# macOS system files
+.DS_Store
+
+# Data & Models 
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
+
+# Веса моделей и экспорты
+*.pt
+*.onnx
+*.mlpackage/
+*.engine
+*.pb
+
+# Видео и результаты обработки
+*.mp4
+*.avi
+*.mov
+*.json
+runs/
+
+# Logs
+*.log
