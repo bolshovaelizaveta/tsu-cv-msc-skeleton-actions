@@ -18,6 +18,7 @@ data/*
 !data/.gitkeep
 models/*
 !models/.gitkeep
+outputs/*
 
 # Веса моделей и экспорты
 *.pt
