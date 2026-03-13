@@ -11,25 +11,35 @@ class Visualizer:
         ]
 
     def draw_frame(self, frame: np.ndarray, people: List[Dict[str, Any]]) -> np.ndarray:
-        """Отрисовывает скелеты и ID на кадре."""
         canvas = frame.copy()
 
         for person in people:
             kpts = np.array(person['keypoints'])
             track_id = person['track_id']
+            action = person.get('action', 'unknown')
 
+            # Рисуем линии 
             for edge in self.skeleton_edges:
                 pt1, pt2 = kpts[edge[0]], kpts[edge[1]]
-                if pt1[2] > 0.5 and pt2[2] > 0.5:
+                # Проверяем уверенность (>0.3) И чтобы координаты не были нулевыми (x>5, y>5)
+                if (pt1[2] > 0.3 and pt2[2] > 0.3 and 
+                    pt1[0] > 5 and pt1[1] > 5 and pt2[0] > 5 and pt2[1] > 5):
                     cv2.line(canvas, (int(pt1[0]), int(pt1[1])), 
                              (int(pt2[0]), int(pt2[1])), (0, 255, 0), 2)
 
+            # Рисуем точки
             for pt in kpts:
-                if pt[2] > 0.5:
+                if pt[2] > 0.3 and pt[0] > 5 and pt[1] > 5:
                     cv2.circle(canvas, (int(pt[0]), int(pt[1])), 4, (0, 0, 255), -1)
 
+            # Красивый вывод текста 
             x1, y1 = int(person['bbox'][0]), int(person['bbox'][1])
-            cv2.putText(canvas, f"ID: {track_id}", (x1, y1 - 10), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+            
+            text_color = (0, 0, 255) if action in ['smoking', 'fighting'] else (255, 255, 0)
+            
+            # Рисуем черную подложку для текста 
+            text = f"ID: {track_id} | {action}"
+            cv2.putText(canvas, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 4) 
+            cv2.putText(canvas, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2) 
             
         return canvas

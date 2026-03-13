@@ -1,93 +1,126 @@
 import cv2
 import time
 import json
+import glob
+import os
 import numpy as np
 from src.detector import PoseDetector
 from src.classifier import ActionClassifier
 from src.analyzer import GroupAnalyzer
 from src.visualizer import Visualizer
 
+SCREENSHOT_DIR = "results/screenshots"
+SAVE_INTERVAL = 30  
+last_saved_frame = {}
+
+def get_video_path(folder="data"):
+    videos = glob.glob(f"{folder}/*.mp4")
+    if not videos:
+        raise FileNotFoundError(f"В папке {folder} нет файлов mp4.")
+    return videos[-1]
+
 def main():
-    # Инициализация модулей
-    detector = PoseDetector(model_path="models/yolo11n-pose.pt", device='mps')
-    classifier = ActionClassifier(model_path="models/stgcn_weights.pt")
+    detector = PoseDetector(model_path="yolo11m-pose.pt", device='mps')
+    classifier = ActionClassifier()
     analyzer = GroupAnalyzer()
     visualizer = Visualizer()
 
-    video_path = "data/test_video.mp4"
+    video_path = get_video_path()
     cap = cv2.VideoCapture(video_path)
+    
+    w, h, fps_in = int(cap.get(3)), int(cap.get(4)), cap.get(5)
+    os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+    out = cv2.VideoWriter('results/final_analytics.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps_in, (w, h))
 
-    final_results = []
-    fps_history = [] # История скорости обработки 
-
-    print(f"Необходимая скорость: 75 FPS")
+    # Словарь для каждого найденного действия
+    stats_frames = {} 
     
     frame_idx = 0
+    FRAME_SKIP = 5 
+
+    print(f"Запуск аналитики: {video_path}")
+
     while cap.isOpened():
-        start_time = time.time() 
-        
+        start_time = time.time()
         success, frame = cap.read()
         if not success:
             break
 
         frame_idx += 1
+        if frame_idx % FRAME_SKIP != 0:
+            continue
         
-        # Детекция 
         people = detector.get_skeleton_data(frame)
-
-        # Анализ действий (пока что заглушка) 
+        
+        # Анализ индивидуальных действий и подсчет экранного времени
+        current_frame_actions = []
         for p in people:
-            p['action'] = classifier.predict({})['action']
+            action = classifier.predict(p)
+            p['action'] = action
+            current_frame_actions.append(action)
+            
+            # Накапливаем кадры для каждого действия
+            stats_frames[action] = stats_frames.get(action, 0) + 1
+            
+            # Скриншоты действий 
+            if action not in ['standing', 'buffering', 'unknown']:
+                if frame_idx - last_saved_frame.get(action, 0) > SAVE_INTERVAL:
+                    path = os.path.join(SCREENSHOT_DIR, action)
+                    os.makedirs(path, exist_ok=True)
+                    cv2.imwrite(os.path.join(path, f"frame_{frame_idx}.jpg"), frame)
+                    last_saved_frame[action] = frame_idx
 
-        # Анализ групп (пока что заглушка) 
+        # Анализ групп и скриншоты событий
         group_events = analyzer.analyze(people)
+        for event in group_events:
+            stats_frames[event] = stats_frames.get(event, 0) + 1
+            
+            if frame_idx - last_saved_frame.get(event, 0) > SAVE_INTERVAL:
+                path = os.path.join(SCREENSHOT_DIR, event)
+                os.makedirs(path, exist_ok=True)
+                cv2.imwrite(os.path.join(path, f"group_{frame_idx}.jpg"), frame)
+                last_saved_frame[event] = frame_idx
 
-        # Расчет скорости (FPS) 
-        frame_time = time.time() - start_time
-        fps = 1.0 / frame_time if frame_time > 0 else 0
-        fps_history.append(fps)
-
-        # Логирование в консоль 
-        if frame_idx % 10 == 0: 
-            summary = ", ".join([f"ID {p['track_id']}: {p['action']}" for p in people])
-            print(f"Кадр {frame_idx} | Скор.: {fps:.1f} FPS | Объектов: {len(people)} | {summary}")
-
-        # Сохранение данных 
-        final_results.append({
-            "frame": frame_idx,
-            "fps": round(fps, 1),
-            "people": people
-        })
-
-        # Визуализация 
+        # Визуализация
         output_frame = visualizer.draw_frame(frame, people)
+
+        # Отрисовка DASHBOARD
+        overlay = output_frame.copy()
+        cv2.rectangle(overlay, (w - 350, 0), (w, 300), (0, 0, 0), -1)
+        cv2.addWeighted(overlay, 0.6, output_frame, 0.4, 0, output_frame)
         
-        cv2.putText(output_frame, f"FPS: {fps:.1f}", (20, 50), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 255), 3)
+        cv2.putText(output_frame, "KION ANALYTICS", (w - 330, 40), 0, 0.7, (255, 255, 255), 2)
         
-        cv2.imshow("KION Video Analytics", output_frame)
+        # Выводим топ самых частых действий в этом видео
+        y_pos = 80
+        sorted_stats = sorted(stats_frames.items(), key=lambda x: x[1], reverse=True)
+        
+        for action_name, frames_count in sorted_stats[:6]:
+            duration = (frames_count * FRAME_SKIP) / fps_in
+            color = (0, 255, 0) if action_name not in ['smoking', 'fighting'] else (0, 0, 255)
+            
+            text = f"{action_name.capitalize()}: {duration:.1f}s"
+            cv2.putText(output_frame, text, (w - 330, y_pos), 0, 0.6, color, 1)
+            y_pos += 30
+
+        # Групповые события внизу
+        for i, event in enumerate(group_events):
+            cv2.putText(output_frame, f"EVENT: {event.upper()}", (20, h - 40 - i*30), 0, 0.8, (0, 0, 255), 2)
+
+        # FPS
+        proc_fps = (1.0 / (time.time() - start_time)) * FRAME_SKIP
+        cv2.putText(output_frame, f"FPS: {proc_fps:.1f}", (20, 50), 0, 1.2, (0, 255, 255), 3)
+
+        out.write(output_frame)
+        cv2.imshow("KION", output_frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-    # Итоги 
     cap.release()
+    out.release()
     cv2.destroyAllWindows()
-
-    avg_fps = np.mean(fps_history) if fps_history else 0
-    
-    output_json_path = "data/analytics_results.json"
-    with open(output_json_path, 'w') as f:
-        json.dump({
-            "metadata": {
-                "avg_fps": round(avg_fps, 1),
-                "total_frames": frame_idx
-            },
-            "data": final_results
-        }, f, indent=4)
-    
-    print(f"Средняя скорость: {avg_fps:.1f} FPS")
-    print(f"Результаты сохранены в: {output_json_path}")
+    print(f"Скриншоты в {SCREENSHOT_DIR}")
 
 if __name__ == "__main__":
     main()
