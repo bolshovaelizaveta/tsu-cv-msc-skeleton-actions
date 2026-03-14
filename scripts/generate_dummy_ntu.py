@@ -1,6 +1,7 @@
 import os
 import numpy as np
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 NUM_FRAMES = 30
 NUM_JOINTS = 17

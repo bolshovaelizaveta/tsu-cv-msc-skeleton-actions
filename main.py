@@ -21,7 +21,7 @@ def get_video_path(folder="data"):
 
 def main():
     detector = PoseDetector(model_path="yolo11m-pose.pt", device='mps')
-    classifier = ActionClassifier()
+    classifier = ActionClassifier(model_path="models/ntu_baseline.pt", device='mps')
     analyzer = GroupAnalyzer()
     visualizer = Visualizer()
 

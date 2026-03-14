@@ -3,13 +3,16 @@ import sys
 import cv2
 import torch
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(BASE_DIR)
+
 from src.detector import PoseDetector
 from src.sequence_buffer import SequenceBuffer
 from src.skeleton_adapter import SkeletonAdapter
 from src.classifiers.ntu_baseline import NTUBaselineClassifier
 
 
-MODEL_PATH = "models/ntu_baseline.pt"
+MODEL_PATH = os.path.join(BASE_DIR, "models", "ntu_baseline.pt")
 
 CLASS_NAMES = [
     "sit",

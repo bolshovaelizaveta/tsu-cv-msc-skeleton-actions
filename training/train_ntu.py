@@ -1,16 +1,20 @@
 import os
+import sys
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
 from torch.utils.data import random_split, DataLoader
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(BASE_DIR)
+
 from src.datasets.ntu_dataset import NTUDataset
 from src.classifiers.ntu_baseline import NTUBaselineClassifier
 
 
-DATA_DIR = "data/ntu_subset"
-MODEL_DIR = "models"
+DATA_DIR = os.path.join(BASE_DIR, "data", "ntu_subset")
+MODEL_DIR = os.path.join(BASE_DIR, "models")
 MODEL_PATH = os.path.join(MODEL_DIR, "ntu_baseline.pt")
 
 BATCH_SIZE = 8
