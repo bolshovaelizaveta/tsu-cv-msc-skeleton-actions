@@ -15,7 +15,7 @@ POSE_MODEL_PATH = "models/yolo11n-pose.pt"
 STGCNPP_CONFIG = "configs/skeleton/stgcnpp/stgcnpp_8xb16-joint-u100-80e_ntu60-xsub-keypoint-2d.py"
 STGCNPP_CHECKPOINT = "models/stgcnpp_ntu60_xsub.pth"
 
-WINDOW_SIZE = 32
+WINDOW_SIZE = 100
 
 
 def draw_label(frame, text, x, y):
