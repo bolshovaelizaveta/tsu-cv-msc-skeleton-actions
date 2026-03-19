@@ -2,27 +2,27 @@ import os
 import sys
 import cv2
 import torch
+from collections import Counter
 
 from src.detector import PoseDetector
 from src.sequence_buffer_3d import SequenceBuffer3D
 from src.skeleton_adapter_stgcnpp import SkeletonAdapterSTGCNPP
 from src.classifiers.stgcnpp_classifier import STGCNPPClassifier
+from src.utils.ntu60_labels import NTU60_CLASSES
 
 
 POSE_MODEL_PATH = "models/yolo11n-pose.pt"
 STGCNPP_CONFIG = "configs/skeleton/stgcnpp/stgcnpp_8xb16-joint-u100-80e_ntu60-xsub-keypoint-2d.py"
 STGCNPP_CHECKPOINT = "models/stgcnpp_ntu60_xsub.pth"
 
-# Это не ваши кастомные классы, а классы NTU60.
-# Для демо можно хотя бы печатать индекс.
-# Потом отдельно сделаем маппинг action_id -> название.
-CLASS_NAMES = None
-
-WINDOW_SIZE = 100
+WINDOW_SIZE = 32
 
 
 def draw_label(frame, text, x, y):
-    cv2.rectangle(frame, (x, y - 25), (x + 260, y), (0, 0, 0), -1)
+    x = max(10, x)
+    y = max(30, y)
+
+    cv2.rectangle(frame, (x, y - 25), (x + 320, y), (0, 0, 0), -1)
     cv2.putText(
         frame,
         text,
@@ -82,6 +82,9 @@ def main():
         (width, height)
     )
 
+    # список для накопления предсказаний
+    predictions = []
+
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -100,7 +103,7 @@ def main():
             skeleton = adapter.adapt_yolo(keypoints)
             seq = buffer.update(track_id, skeleton)
 
-            if bbox is not None:
+            if bbox is not None and len(bbox) >= 2:
                 x1, y1 = int(bbox[0]), int(bbox[1])
             else:
                 x1, y1 = 20, 40
@@ -109,10 +112,17 @@ def main():
                 seq_tensor = torch.tensor(seq, dtype=torch.float32)
                 pred_idx, conf = classifier.predict_from_sequence(seq_tensor)
 
-                if CLASS_NAMES is None:
-                    label = f"id={track_id} class={pred_idx} ({conf:.2f})"
+                if pred_idx < len(NTU60_CLASSES):
+                    class_name = NTU60_CLASSES[pred_idx]
                 else:
-                    label = f"id={track_id} {CLASS_NAMES[pred_idx]} ({conf:.2f})"
+                    class_name = f"class_{pred_idx}"
+
+                label = f"id={track_id} {class_name} ({conf:.2f})"
+                print(f"[track {track_id}] -> {class_name} ({conf:.2f})")
+
+                # 🔥 сохраняем предсказание
+                predictions.append(class_name)
+
             else:
                 label = f"id={track_id} buffering {len(seq)}/{WINDOW_SIZE}"
 
@@ -131,6 +141,20 @@ def main():
 
     print(f"Saved annotated video to: {out_path}")
 
+    if len(predictions) > 0:
+        counter = Counter(predictions)
+        total = len(predictions)
+
+        print("\n========================")
+        print("CLASS DISTRIBUTION:")
+
+        for cls, count in counter.most_common():
+            freq = count / total
+            print(f"{cls:<35} — {freq:.2%} ({count})")
+
+        print("========================")
+    else:
+        print("No predictions made")
 
 if __name__ == "__main__":
     main()
