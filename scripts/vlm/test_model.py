@@ -57,19 +57,6 @@ with torch.inference_mode():
 response = processor.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
 print("\nMODEL RESPONSE:\n", response)
 
-# Парсинг JSON
-# json_match = re.search(r"\{.*\}", response, re.DOTALL)
-# if json_match:
-#     try:
-#         result = json.loads(json_match.group())
-#         print("\nPARSED JSON:\n", json.dumps(result, indent=2, ensure_ascii=False))
-#         if config["logging"]["save_responses"]:
-#             with open("response.json", "w") as f:
-#                 json.dump(result, f, indent=2)
-#     except json.JSONDecodeError:
-#         print("JSON parse error")
-# else:
-#     print("No JSON found")
 
 # Очистка
 torch.cuda.empty_cache() if device == "cuda" else None

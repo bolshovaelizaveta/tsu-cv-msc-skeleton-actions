@@ -12,24 +12,20 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# CUDA оптимизации
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
-# Загрузка конфига
 with open("configs/vlm/config.yaml", "r") as f:
     config = yaml.safe_load(f)["vlm"]
 
-# Настройки
 device = "cuda" if torch.cuda.is_available() and config["model"]["device"] == "cuda" else "cpu"
 print(f"device: {device}")
 
 model_path = config["model"].get("local_path", config["model"]["name"])
 print(f"Loading model from: {model_path}")
 
-# Загрузка модели
 processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True, local_files_only=True)
 model = AutoModelForImageTextToText.from_pretrained(
     model_path, 
@@ -44,14 +40,16 @@ print("Model loaded")
 def analyze():
     data = request.json
     
-    # Декодируем изображение
     image_data = data['image'].split(',')[1]
     image = Image.open(io.BytesIO(base64.b64decode(image_data))).convert('RGB')
     
-    # Промпт
-    prompt = config["prompts"]["moderation"]
+    # Выбор промпта с подсказкой
+    suggested = data.get('suggested_action')
+    if suggested:
+        prompt = config["prompts"]["keyframe_selection"].format(suggested_action=suggested)
+    else:
+        prompt = config["prompts"]["moderation"]
     
-    # Инференс
     messages = [{"role": "user", "content": [
         {"type": "image", "image": image},
         {"type": "text", "text": prompt}
@@ -64,7 +62,6 @@ def analyze():
     
     response = processor.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
     
-    # Парсим JSON
     match = re.search(r'\{.*\}', response, re.DOTALL)
     if match:
         try:
@@ -73,7 +70,7 @@ def analyze():
         except:
             pass
     
-    return jsonify({'success': False, 'error': 'Parse error'})
+    return jsonify({'success': False})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
