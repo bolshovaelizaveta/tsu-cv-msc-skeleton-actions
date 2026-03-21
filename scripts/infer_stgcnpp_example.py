@@ -9,7 +9,7 @@ from src.sequence_buffer_3d import SequenceBuffer3D
 from src.skeleton_adapter_stgcnpp import SkeletonAdapterSTGCNPP
 from src.classifiers.stgcnpp_classifier import STGCNPPClassifier
 from src.utils.ntu60_labels import NTU60_CLASSES
-from src.utils.action_mapping import map_ntu_to_target
+from src.utils.action_mapping import resolve_target_class
 
 
 POSE_MODEL_PATH = "models/yolo11n-pose.pt"
@@ -95,6 +95,7 @@ def main():
 
     ntu_predictions = []
     target_predictions = []
+    last_sequence = None
 
     while True:
         ret, frame = cap.read()
@@ -113,6 +114,7 @@ def main():
 
             skeleton = adapter.adapt_yolo(keypoints)
             seq = buffer.update(track_id, skeleton)
+            last_sequence = seq
 
             if bbox is not None and len(bbox) >= 2:
                 x1, y1 = int(bbox[0]), int(bbox[1])
@@ -128,7 +130,30 @@ def main():
                 else:
                     ntu_class_name = f"class_{pred_idx}"
 
-                target_class = map_ntu_to_target(ntu_class_name)
+                target_class = None
+                # промежуточный mapping по одному окну оставляем только для распределения
+                if "punching/slapping other person" == ntu_class_name:
+                    target_class = "fight"
+                elif "kicking other person" == ntu_class_name:
+                    target_class = "fight"
+                elif "pushing other person" == ntu_class_name:
+                    target_class = "fight"
+                elif "hugging other person" == ntu_class_name:
+                    target_class = "hug"
+                elif "pat on back of other person" == ntu_class_name:
+                    target_class = "hug"
+                elif "handshaking" == ntu_class_name:
+                    target_class = "handshake"
+                elif ntu_class_name == "walking towards each other":
+                    target_class = "handshake"
+                elif ntu_class_name == "walking apart from each other":
+                    target_class = "walk"
+                elif ntu_class_name in ("hopping (one foot jumping)", "jump up"):
+                    target_class = "jump"
+                elif ntu_class_name == "sitting down":
+                    target_class = "sit"
+                elif ntu_class_name == "standing up":
+                    target_class = "stand"
 
                 ntu_predictions.append(ntu_class_name)
                 if target_class is not None:
@@ -136,10 +161,8 @@ def main():
 
                 if target_class is not None:
                     label = f"id={track_id} {target_class} | {ntu_class_name} ({conf:.2f})"
-                    print(f"[track {track_id}] -> target={target_class}, ntu={ntu_class_name} ({conf:.2f})")
                 else:
                     label = f"id={track_id} {ntu_class_name} ({conf:.2f})"
-                    print(f"[track {track_id}] -> ntu={ntu_class_name} ({conf:.2f})")
             else:
                 label = f"id={track_id} buffering {len(seq)}/{WINDOW_SIZE}"
 
@@ -164,18 +187,19 @@ def main():
         print("No NTU predictions made")
 
     if len(target_predictions) > 0:
-        target_counter = Counter(target_predictions)
-        print_distribution("TARGET CLASS DISTRIBUTION:", target_counter)
-
-        final_target, count = target_counter.most_common(1)[0]
-        total = sum(target_counter.values())
-
-        print("\n========================")
-        print(f"FINAL TARGET ACTION: {final_target}")
-        print(f"Count: {count}/{total}")
-        print("========================")
+        print_distribution("TARGET CLASS DISTRIBUTION:", Counter(target_predictions))
     else:
         print("No mapped target predictions made")
+
+    if len(ntu_predictions) > 0 and last_sequence is not None:
+        final_class, scores = resolve_target_class(ntu_predictions, last_sequence)
+
+        print("\n========================")
+        print(f"FINAL SCENE CLASS: {final_class}")
+        print("Scores:", scores)
+        print("========================")
+    else:
+        print("No final scene class resolved")
 
 
 if __name__ == "__main__":
