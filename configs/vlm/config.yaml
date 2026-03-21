@@ -1,0 +1,35 @@
+# Настройки VLM модели
+vlm:
+  model:
+    name: "Qwen/Qwen3-VL-4B-Instruct"
+    device: "cuda"
+    use_4bit: false
+    local_path: "models/Qwen/Qwen3-VL-4B-Instruct"
+
+  generation:
+    max_new_tokens: 512
+    temperature: 0.1
+    top_p: 0.95
+    do_sample: false
+
+  prompts:
+    moderation: |
+      Ты — система модерации контента.
+      Посмотри на картинку и ответь строго в формате JSON.
+      Поля ответа:
+      - description: краткое описание (1 предложение)
+      - has_smoking: true/false
+      - has_same_gender_intimacy: true/false
+      - has_violence: true/false
+      - participants_count: число людей
+      - confidence: high/medium/low
+
+  logging:
+    verbose: true
+    save_responses: true
+
+  input_dir: /data
+  test_image: scripts/vlm/test.jpg
+
+
+  
