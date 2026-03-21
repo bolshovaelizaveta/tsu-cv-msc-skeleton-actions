@@ -23,7 +23,8 @@ POSE_MODEL = "models/yolo11m-pose.pt"
 STGCNPP_CONFIG = "configs/skeleton/stgcnpp/stgcnpp_8xb16-joint-u100-80e_ntu60-xsub-keypoint-2d.py"
 STGCNPP_CHECKPOINT = "models/stgcnpp_ntu60_xsub.pth"
 WINDOW_SIZE = 32
-VLM_INTERVAL = 30
+VLM_INTERVAL = 5  # секунд между вызовами VLM
+YOLO_SKIP = 5  # Обрабатывать каждый 5й кадр
 
 with open("configs/vlm/config.yaml", "r") as f:
     vlm_config = yaml.safe_load(f)["vlm"]
@@ -40,9 +41,6 @@ def main():
     video_name = os.path.splitext(os.path.basename(video_path))[0]
     
     clf_device = "cuda" if torch.cuda.is_available() else "cpu"
-    pose_device = "mps" if torch.backends.mps.is_available() else "cpu"
-
-    print(clf_device, pose_device)
     
     detector = PoseDetector(POSE_MODEL, clf_device)
     adapter = SkeletonAdapterSTGCNPP()
@@ -52,17 +50,25 @@ def main():
     
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    total_duration = total_frames / fps if fps > 0 else 0
+    
+    print(f"Video info: {total_frames} frames, {fps:.2f} fps, duration: {total_duration:.2f}s")
+    print(f"VLM will be called every {VLM_INTERVAL} seconds")
+    print(f"Expected VLM calls: ~{int(total_duration / VLM_INTERVAL) + 1}\n")
+    
     width, height = int(cap.get(3)), int(cap.get(4))
     writer = cv2.VideoWriter(f"outputs/{video_name}_output.mp4", cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
     
     frame_num = 0
     predictions = []
     vlm_results = []
-    last_vlm = -VLM_INTERVAL
+    last_vlm_time = -VLM_INTERVAL  # Инициализация для первого вызова
+    vlm_call_count = 0
     
     # FPS замер
     start_time = time.time()
-    fps_counter = 0
+    processed_frames = 0  # Реально обработанные YOLO кадры
     
     while True:
         ret, frame = cap.read()
@@ -70,10 +76,19 @@ def main():
             break
         
         timestamp = frame_num / fps
-        persons = detector.get_skeleton_data(frame)
+        
+        # YOLO только каждый YOLO_SKIP кадр
+        if frame_num % YOLO_SKIP == 0:
+            persons = detector.get_skeleton_data(frame)
+            processed_frames += 1
+        else:
+            persons = []
         
         # Рисуем на frame_for_viz (с надписями)
         frame_for_viz = frame.copy()
+        
+        # Отслеживаем действия для каждого человека
+        current_actions = []
         
         for p in persons:
             track_id = p.get('track_id', 0)
@@ -93,6 +108,7 @@ def main():
                 action = map_ntu_to_target(ntu_class)
                 
                 if action:
+                    current_actions.append(action)
                     predictions.append(action)
                     label = f"{action} ({conf:.2f})"
                 else:
@@ -104,55 +120,89 @@ def main():
             cv2.rectangle(frame_for_viz, (x, y-25), (x+300, y), (0,0,0), -1)
             cv2.putText(frame_for_viz, label, (x+5, y-7), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
         
-        # VLM с подсказкой
-        if timestamp - last_vlm >= VLM_INTERVAL:
-            last_vlm = timestamp
+        # VLM вызов с проверкой на интервал
+        # Используем более надежное сравнение с эпсилон
+        time_since_last_vlm = timestamp - last_vlm_time
+        should_call_vlm = time_since_last_vlm >= (VLM_INTERVAL - 0.01)  # Добавляем небольшой допуск
+        
+        if should_call_vlm and timestamp < total_duration:
+            print(f"\n[DEBUG] VLM CALL #{vlm_call_count + 1}")
+            print(f"  timestamp={timestamp:.2f}s, last_vlm={last_vlm_time:.2f}s, diff={time_since_last_vlm:.2f}s")
             
-            # Получаем подсказку из последних предсказаний
+            last_vlm_time = timestamp
+            vlm_call_count += 1
+            
+            # Определяем предложенное действие на основе последних предсказаний
             suggested = None
-            if predictions:
+            if current_actions:
+                # Используем текущие действия вместо predictions[-10:]
+                suggested = Counter(current_actions).most_common(1)[0][0]
+            elif predictions:
                 suggested = Counter(predictions[-10:]).most_common(1)[0][0]
             
-            result = vlm.analyze(frame, suggested_action=suggested)
+            print(f"  Suggested action: {suggested if suggested else 'none'}")
             
-            if result and result.get('success'):
-                print(f"\n[{timestamp:.1f}s] VLM: {result['action']} (conf={result['confidence']:.2f}, people={result['participants']})")
-                cv2.putText(frame_for_viz, f"VLM: {result['action']}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,255), 2)
+            # Вызываем VLM
+            try:
+                result = vlm.analyze(frame, suggested_action=suggested)
                 
-                vlm_results.append({
-                    'timestamp': timestamp,
-                    'action': result['action'],
-                    'confidence': result['confidence'],
-                    'participants': result.get('participants', 0),
-                    'reasoning': result.get('reasoning', ''),
-                    'suggested': suggested
-                })
-                
-                if vlm_config['logging'].get('save_keyframes', True):
-                    keyframe_path = os.path.join(vlm_config['keyframes_dir'], f"{video_name}_{timestamp:.1f}s.jpg")
-                    cv2.imwrite(keyframe_path, frame)
+                if result and result.get('success'):
+                    print(f"  VLM result: {result['action']} (conf={result['confidence']:.2f}, people={result['participants']})")
+                    cv2.putText(frame_for_viz, f"VLM: {result['action']}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,255), 2)
+                    
+                    vlm_results.append({
+                        'timestamp': timestamp,
+                        'action': result['action'],
+                        'confidence': result['confidence'],
+                        'participants': result.get('participants', 0),
+                        'reasoning': result.get('reasoning', ''),
+                        'suggested': suggested,
+                        'frame_num': frame_num
+                    })
+                    
+                    if vlm_config['logging'].get('save_keyframes', True):
+                        keyframe_path = os.path.join(vlm_config['keyframes_dir'], f"{video_name}_{timestamp:.1f}s.jpg")
+                        cv2.imwrite(keyframe_path, frame)
+                        print(f"  Keyframe saved: {keyframe_path}")
+                else:
+                    print(f"  VLM failed: {result.get('error', 'Unknown error') if result else 'No result'}")
+            except Exception as e:
+                print(f"  VLM exception: {e}")
         
         # Добавляем FPS на кадр
-        fps_counter += 1
-        if frame_num % 30 == 0:
+        if frame_num % 30 == 0 and frame_num > 0:
             elapsed = time.time() - start_time
-            current_fps = fps_counter / elapsed if elapsed > 0 else 0
-            cv2.putText(frame_for_viz, f"FPS: {current_fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,255), 2)
+            real_fps = processed_frames / elapsed if elapsed > 0 else 0
+            effective_fps = real_fps * YOLO_SKIP
+            cv2.putText(frame_for_viz, f"FPS: {effective_fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,255), 2)
+        
+        # Показываем информацию о VLM на кадре
+        cv2.putText(frame_for_viz, f"VLM calls: {vlm_call_count}", (10, height - 20), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,255), 1)
         
         writer.write(frame_for_viz)
         frame_num += 1
         
         if frame_num % 100 == 0:
-            print(f"Frame: {frame_num}")
+            print(f"Progress: {frame_num}/{total_frames} frames ({frame_num/total_frames*100:.1f}%)")
     
     cap.release()
     writer.release()
     
     # Итоговый FPS
     total_time = time.time() - start_time
-    avg_fps = frame_num / total_time if total_time > 0 else 0
-    print(f"\nProcessing time: {total_time:.2f}s")
-    print(f"Average FPS: {avg_fps:.2f}")
+    real_fps = processed_frames / total_time if total_time > 0 else 0
+    effective_fps = real_fps * YOLO_SKIP
+    
+    print(f"\n{'='*50}")
+    print(f"PROCESSING SUMMARY")
+    print(f"{'='*50}")
+    print(f"Total time: {total_time:.2f}s")
+    print(f"Processed frames (YOLO): {processed_frames}")
+    print(f"Real YOLO FPS: {real_fps:.2f}")
+    print(f"Effective FPS (full video): {effective_fps:.2f}")
+    print(f"Total VLM calls: {vlm_call_count}")
+    print(f"Expected VLM calls: ~{int(total_duration / VLM_INTERVAL) + 1}")
     
     if vlm_results and vlm_config['logging'].get('save_responses', True):
         results_path = os.path.join(vlm_config['output_dir'], f"{video_name}_vlm_results.json")
@@ -163,15 +213,18 @@ def main():
     if predictions:
         counter = Counter(predictions)
         print("\n" + "="*50)
-        print("RESULTS")
-        for action, count in counter.most_common():
-            print(f"{action:15}: {count} ({count/len(predictions)*100:.1f}%)")
-        print(f"\nFINAL: {counter.most_common(1)[0][0]}")
+        print("CLASSIFICATION RESULTS")
+        print("="*50)
+        for action, count in counter.most_common(10):
+            print(f"{action:20}: {count:4} ({count/len(predictions)*100:5.1f}%)")
+        print(f"\nMOST COMMON: {counter.most_common(1)[0][0]}")
     
     if vlm_results:
-        print("\nVLM RESULTS:")
+        print("\n" + "="*50)
+        print("VLM RESULTS")
+        print("="*50)
         for res in vlm_results:
-            print(f"  {res['timestamp']:.1f}s: {res['action']} (suggested: {res.get('suggested', 'none')})")
+            print(f"  {res['timestamp']:.1f}s: {res['action']} (conf={res['confidence']:.2f}) [suggested: {res.get('suggested', 'none')}]")
 
 if __name__ == "__main__":
     main()

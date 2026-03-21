@@ -4,7 +4,7 @@ vlm:
     name: "Qwen/Qwen3-VL-4B-Instruct"
     device: "cuda"
     use_4bit: false
-    local_path: "./models/Qwen/Qwen3-VL-4B-Instruct"  # АБСОЛЮТНЫЙ ПУТЬ
+    local_path: "./models/Qwen/Qwen3-VL-4B-Instruct"  
     max_pixels: 65536
 
   generation:
