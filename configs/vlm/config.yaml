@@ -1,35 +1,39 @@
-# Настройки VLM модели
+# configs/vlm/config.yaml
 vlm:
   model:
     name: "Qwen/Qwen3-VL-4B-Instruct"
     device: "cuda"
     use_4bit: false
-    local_path: "models/Qwen/Qwen3-VL-4B-Instruct"
+    local_path: "./models/Qwen/Qwen3-VL-4B-Instruct"  # АБСОЛЮТНЫЙ ПУТЬ
+    max_pixels: 65536
 
   generation:
-    max_new_tokens: 512
+    max_new_tokens: 256
     temperature: 0.1
     top_p: 0.95
     do_sample: false
+    repetition_penalty: 1.05
 
   prompts:
     moderation: |
-      Ты — система модерации контента.
-      Посмотри на картинку и ответь строго в формате JSON.
-      Поля ответа:
-      - description: краткое описание (1 предложение)
-      - has_smoking: true/false
-      - has_same_gender_intimacy: true/false
-      - has_violence: true/false
-      - participants_count: число людей
-      - confidence: high/medium/low
+      Analyze this image. What action is happening?
+      Choose from: sit, walk, jump, smoke, fight, dance, handshake, hug, rally, circle_formation, tug_of_war.
+      Respond in JSON: {"action": "...", "confidence": 0.0-1.0, "participants": N, "reasoning": "..."}
+    
+    action_recognition: |
+      Analyze this image. What action is happening?
+      Choose from: sit, walk, jump, smoke, fight, dance, handshake, hug, rally, circle_formation, tug_of_war.
+      Respond in JSON: {"action": "...", "confidence": 0.0-1.0, "participants": N, "reasoning": "..."}
+      
+    keyframe_selection: |
+      This is a key frame. Previous frames suggest {suggested_action}.
+      Confirm or correct in JSON: {"action": "...", "confidence": 0.0-1.0, "participants": N, "reasoning": "..."}
 
   logging:
     verbose: true
     save_responses: true
+    save_keyframes: true
 
   input_dir: /data
-  test_image: scripts/vlm/test.jpg
-
-
-  
+  output_dir: results/vlm
+  keyframes_dir: results/keyframes

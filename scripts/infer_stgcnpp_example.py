@@ -146,7 +146,7 @@ def main():
             draw_label(frame, label, x1, y1)
 
         writer.write(frame)
-        cv2.imshow("STGCN++ Example", frame)
+        # cv2.imshow("STGCN++ Example", frame)
 
         key = cv2.waitKey(1)
         if key == 27 or key == ord("q"):

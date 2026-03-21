@@ -22,4 +22,7 @@ RUN pip install transformers accelerate pillow \
     opencv-python-headless pyyaml decord
 
 WORKDIR /app
+
+EXPOSE 5000
+
 CMD ["tail","-f","/dev/null"]
