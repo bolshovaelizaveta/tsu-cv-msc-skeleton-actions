@@ -12,7 +12,7 @@ from src.utils.ntu60_labels import NTU60_CLASSES
 from src.utils.action_mapping import map_ntu_to_target
 
 
-POSE_MODEL_PATH = "models/yolo11n-pose.pt"
+POSE_MODEL_PATH = "models/yolo11m-pose.pt"
 STGCNPP_CONFIG = "configs/skeleton/stgcnpp/stgcnpp_8xb16-joint-u100-80e_ntu60-xsub-keypoint-2d.py"
 STGCNPP_CHECKPOINT = "models/stgcnpp_ntu60_xsub.pth"
 
