@@ -9,9 +9,6 @@ from collections import Counter, defaultdict
 import cv2
 import torch
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, PROJECT_ROOT)
-
 from src.detector import PoseDetector
 from src.sequence_buffer_3d import SequenceBuffer3D
 from src.skeleton_adapter_stgcnpp import SkeletonAdapterSTGCNPP
@@ -21,6 +18,8 @@ from src.utils.action_mapping import map_ntu_to_target, resolve_target_class
 from src.vlm.vlm_client import VLMClient
 from src.analyzer import GroupAnalyzer
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, PROJECT_ROOT)
 
 VIDEO_EXTENSIONS = {".mp4"}
 
@@ -214,7 +213,7 @@ def predict_video(video_path: str, models: dict, use_vlm: bool = True):
 
     final_class, scores = resolve_target_class(raw_ntu_predictions, last_sequence)
 
-    # Если захотите реально использовать VLM-override, можно добавить здесь
+    # Если использовать VLM-override:
     # vlm_action = vlm_result.get("action") if vlm_result else None
 
     return {
