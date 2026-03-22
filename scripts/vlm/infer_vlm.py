@@ -90,6 +90,7 @@ def main():
     start_time = time.time()
     last_fps_time = start_time
     last_fps_frames = 0
+    fps_display_interval = 30  # Добавлено для консольного вывода
     
     while True:
         ret, frame = cap.read()
@@ -165,13 +166,15 @@ def main():
                         pass
                     last_vlm_time = current_time
         
-        # Расчет FPS для экрана
-        if frame_num - last_fps_frames >= 30:
+        # Расчет FPS для экрана и консоли
+        if frame_num - last_fps_frames >= fps_display_interval:
             elapsed = time.time() - last_fps_time
             if elapsed > 0:
                 current_fps = (frame_num - last_fps_frames) / elapsed
                 cv2.putText(frame, f"FPS: {current_fps:.1f}", (10, 30), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,255), 2)
+                # Добавлен вывод FPS в консоль
+                print(f"Processing FPS: {current_fps:.1f} | Frame: {frame_num}/{total_frames}")
             last_fps_time = time.time()
             last_fps_frames = frame_num
         
@@ -180,6 +183,13 @@ def main():
     
     cap.release()
     writer.release()
+    
+    total_time = time.time() - start_time
+    avg_fps = frame_num / total_time if total_time > 0 else 0
+    
+    # Добавлен вывод общей статистики
+    print(f"\nAverage FPS: {avg_fps:.1f}")
+    print(f"Total time: {total_time:.1f}s")
     
     # Сохраняем все VLM вызовы в JSON файл
     if vlm_calls:
