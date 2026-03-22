@@ -213,12 +213,14 @@ def main():
         
         # Маппинг для честного сравнения имен
         is_correct = False
-        if final_class.lower() == ground_truth: is_correct = True
-        elif ground_truth == "smoking" and final_class == "smoking_candidate": is_correct = True
-        elif ground_truth == "jumping" and final_class == "jump": is_correct = True
-        elif ground_truth == "walking" and final_class == "walk": is_correct = True
-        elif ground_truth == "sitting" and final_class == "sit": is_correct = True
-        elif ground_truth == "rally" and final_class == "meeting": is_correct = True
+        final_low = final_class.lower()
+        if final_low == ground_truth: is_correct = True
+        elif ground_truth == "smoking" and final_low == "smoking_candidate": is_correct = True
+        elif ground_truth == "jumping" and final_low == "jump": is_correct = True
+        elif ground_truth == "rally" and final_low == "meeting": is_correct = True
+        elif ground_truth == "circle" and final_low == "circle_triangle": is_correct = True 
+        elif ground_truth == "walking" and final_low == "walk": is_correct = True
+        elif ground_truth == "sitting" and final_low == "sit": is_correct = True
         
         if is_correct:
             print(f">>> RESULT: [ CORRECT ] (GT: {ground_truth})")

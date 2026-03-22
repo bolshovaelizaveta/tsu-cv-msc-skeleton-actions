@@ -174,17 +174,21 @@ def resolve_target_class(ntu_predictions, last_sequence=None, vlm_action=None):
             scores["jump"] += 200.0  # Гарантированно выводим прыжки в топ
             scores["dance"] *= 0.1   # Глушим танцы для этого конкретного окна
 
-    # --- Приоритет VLM ---
+    # --- Приоритет VLM (Больше синонимов, чтобы точно поймать ответ) ---
     if vlm_action:
         v_act = str(vlm_action).lower()
-        if any(s in v_act for s in ["smoke", "smoking"]):
-            scores["smoking_candidate"] += 1000 
-        elif any(s in v_act for s in ["tug", "war", "rope"]):
-            scores["tug_of_war"] = 1000
-        elif any(s in v_act for s in ["rally", "meet", "protest"]):
-            scores["meeting"] = 1000
-        elif any(s in v_act for s in ["circle", "triangle", "formation"]):
-            scores["circle_triangle"] = 1000
+        # КУРЕНИЕ
+        if any(s in v_act for s in ["smoke", "smoking", "cigarette", "vape"]):
+            scores["smoking_candidate"] += 5000 
+        # КАНАТ
+        elif any(s in v_act for s in ["tug", "war", "rope", "pulling"]):
+            scores["tug_of_war"] = 5000
+        # МИТИНГ
+        elif any(s in v_act for s in ["rally", "meeting", "protest", "crowd", "gathering"]):
+            scores["meeting"] = 5000
+        # КРУГ / ХОРОВОД / ТАНЕЦ
+        elif any(s in v_act for s in ["circle", "triangle", "formation", "dance", "round", "horovod"]):
+            scores["circle_triangle"] = 5000
 
     final_class = max(scores, key=scores.get)
 
