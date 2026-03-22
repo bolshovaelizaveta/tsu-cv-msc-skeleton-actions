@@ -15,7 +15,7 @@ from src.sequence_buffer_3d import SequenceBuffer3D
 from src.skeleton_adapter_stgcnpp import SkeletonAdapterSTGCNPP
 from src.classifiers.stgcnpp_classifier import STGCNPPClassifier
 from src.utils.ntu60_labels import NTU60_CLASSES
-from src.utils.action_mapping import map_ntu_to_target
+from src.utils.action_mapping import resolve_target_class  # изменен импорт
 from src.vlm.vlm_client import VLMClient
 
 POSE_MODEL = "models/yolo11m-pose.pt"
@@ -58,11 +58,11 @@ def main():
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
     
     width, height = int(cap.get(3)), int(cap.get(4))
-    writer = cv2.VideoWriter(f"outputs/{video_name}_output.mp4", 
+    writer = cv2.VideoWriter(f"results/{video_name}_output.mp4", 
                             cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
     
     frame_num = 0
-    predictions = []
+    ntu_predictions = []  # изменено с predictions на ntu_predictions
     vlm_result = None
     processed_frames = 0
     
@@ -112,13 +112,11 @@ def main():
                 seq_tensor = torch.tensor(seq, dtype=torch.float32)
                 idx, conf = classifier.predict_from_sequence(seq_tensor)
                 ntu_class = NTU60_CLASSES[idx] if idx < len(NTU60_CLASSES) else 'unknown'
-                action = map_ntu_to_target(ntu_class)
+                ntu_predictions.append(ntu_class)  # сохраняем NTU классы
                 
-                if action:
-                    predictions.append(action)
-                    label = f"{action} ({conf:.2f})"
-                else:
-                    label = ntu_class
+                # Используем отображение для отображения на видео
+                # Временно отображаем NTU класс, так как resolve_target_class используется в конце
+                label = f"{ntu_class} ({conf:.2f})"
             else:
                 label = f"buffer {len(seq)}/{WINDOW_SIZE}"
             
@@ -154,13 +152,32 @@ def main():
     print(f"\nAverage FPS: {avg_fps:.1f}")
     print(f"Total time: {total_time:.1f}s")
     
-    if predictions:
-        counter = Counter(predictions)
-        print(f"Most common action: {counter.most_common(1)[0][0]}")
-        print(f"Total predictions: {len(predictions)}")
+    # Используем resolve_target_class для финального определения действия
+    if ntu_predictions:
+        # Для resolve_target_class нужен последний буфер, получаем его из последнего человека
+        # или создаем фиктивный если нет
+        last_sequence = None
+        if persons:
+            # Получаем последнюю последовательность из последнего человека
+            for p in persons:
+                if p.get('keypoints') is not None:
+                    skeleton = adapter.adapt_yolo(p.get('keypoints'))
+                    seq = buffer.update(p.get('track_id', 0), skeleton)
+                    last_sequence = seq
+                    break
+        
+        if last_sequence is not None:
+            final_class, scores = resolve_target_class(ntu_predictions, last_sequence)
+            print(f"\nFinal scene class: {final_class}")
+            print(f"Scores: {scores}")
+        else:
+            # Если нет последовательности, просто показываем статистику
+            counter = Counter(ntu_predictions)
+            print(f"Most common NTU class: {counter.most_common(1)[0][0]}")
+            print(f"Total predictions: {len(ntu_predictions)}")
     
     if vlm_result and vlm_result.get('success'):
-        print(f"VLM action: {vlm_result['action']} (conf={vlm_result['confidence']:.2f})")
+        print(f"\nVLM action: {vlm_result['action']} (conf={vlm_result['confidence']:.2f})")
 
 if __name__ == "__main__":
     main()

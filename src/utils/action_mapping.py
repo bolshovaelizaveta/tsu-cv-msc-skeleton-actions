@@ -49,6 +49,25 @@ STAND_CLASSES = {
     "standing up",
 }
 
+# ========== НОВЫЕ ГРУППОВЫЕ ДЕЙСТВИЯ ==========
+MEETING_CLASSES = {
+    "gathering",
+    "standing in group",
+    "point finger at the other person",
+    "cheer up",
+}
+
+CIRCLE_TRIANGLE_CLASSES = {
+    "walking in circle",
+    "gathering",
+    "standing",
+}
+
+TUG_OF_WAR_CLASSES = {
+    "pulling",
+    "holding something",
+    "pushing other person",
+}
 
 def compute_motion_energy(sequence):
     """
@@ -103,6 +122,11 @@ def resolve_target_class(ntu_predictions, last_sequence=None):
     sit_score = sum(counter[c] for c in SIT_CLASSES if c in counter)
     stand_score = sum(counter[c] for c in STAND_CLASSES if c in counter)
 
+    # --- новые групповые действия ---
+    meeting_score = sum(counter[c] for c in MEETING_CLASSES if c in counter)
+    circle_triangle_score = sum(counter[c] for c in CIRCLE_TRIANGLE_CLASSES if c in counter)
+    tug_of_war_score = sum(counter[c] for c in TUG_OF_WAR_CLASSES if c in counter)
+
     scores = {
         "fight": fight_score,
         "hug": hug_score,
@@ -112,6 +136,9 @@ def resolve_target_class(ntu_predictions, last_sequence=None):
         "walk": walk_score,
         "sit": sit_score,
         "stand": stand_score,
+        "meeting": meeting_score,
+        "circle_triangle": circle_triangle_score,
+        "tug_of_war": tug_of_war_score,
     }
 
     # --- motion-based correction ---
@@ -123,10 +150,14 @@ def resolve_target_class(ntu_predictions, last_sequence=None):
             scores["fight"] *= 1.35
             scores["jump"] *= 1.15
             scores["dance"] *= 0.90
+            scores["tug_of_war"] *= 1.30  
+            scores["meeting"] *= 0.95     
         else:
             # плавное движение поддерживает dance / hug
             scores["dance"] *= 1.15
             scores["hug"] *= 1.05
+            scores["meeting"] *= 1.10    
+            scores["circle_triangle"] *= 1.15  
 
     # --- rule-based overrides ---
     punch_cnt = counter.get("punching/slapping other person", 0)
@@ -147,6 +178,23 @@ def resolve_target_class(ntu_predictions, last_sequence=None):
     # чтобы dance не доминировал на fight-сценах только из-за close-contact
     if aggressive_cnt > 10:
         scores["dance"] *= 0.7
+
+    # Митинг: если есть много людей в группе и поднятые руки/скандирование
+    gathering_cnt = counter.get("gathering", 0)
+    cheer_cnt = counter.get("cheer up", 0)
+    if gathering_cnt > 3 or cheer_cnt > 5:
+        scores["meeting"] += (gathering_cnt * 2.0 + cheer_cnt * 1.5)
+    
+    # Формирование круга/треугольника: если есть walking in circle
+    circle_cnt = counter.get("walking in circle", 0)
+    if circle_cnt > 2:
+        scores["circle_triangle"] += circle_cnt * 3.0
+    
+    # Перетягивание каната: если есть pulling и holding something
+    pulling_cnt = counter.get("pulling", 0)
+    holding_cnt = counter.get("holding something", 0)
+    if pulling_cnt > 0 and holding_cnt > 0:
+        scores["tug_of_war"] += (pulling_cnt * 2.0 + holding_cnt * 2.0)
 
     final_class = max(scores, key=scores.get)
 
