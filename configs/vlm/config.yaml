@@ -1,0 +1,41 @@
+# configs/vlm/config.yaml
+vlm:
+  model:
+    name: "Qwen/Qwen3-VL-4B-Instruct"
+    device: "cuda"
+    use_4bit: false
+    local_path: "./models/Qwen/Qwen3-VL-4B-Instruct"  
+    max_pixels: 65536
+
+  generation:
+    max_new_tokens: 256
+    temperature: 0.1
+    top_p: 0.95
+    do_sample: false
+    repetition_penalty: 1.05
+
+  prompts:
+    moderation: |
+      Analyze this image. What action is happening?
+      Choose from: sit, walk, jump, smoke, fight, dance, handshake, hug, rally, circle_formation, tug_of_war.
+      Determine if this is a GROUP action (multiple people interacting) or INDIVIDUAL action (single person).
+      Respond in JSON: {"action": "...", "action_type": "group" or "individual", "confidence": 0.0-1.0, "participants": N, "reasoning": "..."}
+    
+    action_recognition: |
+      Analyze this image. What action is happening?
+      Choose from: sit, walk, jump, smoke, fight, dance, handshake, hug, rally, circle_formation, tug_of_war.
+      Determine if this is a GROUP action (multiple people interacting) or INDIVIDUAL action (single person).
+      Respond in JSON: {"action": "...", "action_type": "group" or "individual", "confidence": 0.0-1.0, "participants": N, "reasoning": "..."}
+      
+    keyframe_selection: |
+      This is a key frame. Previous frames suggest {suggested_action}.
+      Confirm or correct in JSON: {"action": "...", "action_type": "group" or "individual", "confidence": 0.0-1.0, "participants": N, "reasoning": "..."}
+
+  logging:
+    verbose: true
+    save_responses: true
+    save_keyframes: true
+
+  input_dir: /data
+  output_dir: results/vlm
+  keyframes_dir: results/keyframes

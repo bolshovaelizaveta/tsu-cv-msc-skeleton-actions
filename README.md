@@ -48,3 +48,102 @@ tsu-cv-msc-skeleton-actions/
    ```bash
    python main.py
    ```
+
+
+## Запуск проекта (Docker)
+
+### Проект запускается через Docker с поддержкой GPU.
+
+1. **Сборка и запуск контейнеров**
+
+   ```bash
+   docker compose up --build -d
+   ```
+
+   Будут подняты сервисы:
+
+   - hakaton-kion-mmaction2
+   - hakaton-kion-vlm
+
+2. **Установка зависимостей**
+
+   **MMACTION2 контейнер**
+   ```bash
+   docker exec -it hakaton-kion-mmaction2 bash
+   pip install -r requirements.txt
+   ```
+
+   **VLM контейнер**
+
+   ```bash
+   docker exec -it hakaton-kion-vlm bash
+   pip install -r requirements.txt
+   ```
+
+3. **Настройка VLM (Qwen3-VL-4B-Instruct)**
+
+   Выполняется внутри контейнера **vlm**.
+
+   Вход в контейнер
+
+   ```bash
+   docker exec -it hakaton-kion-vlm bash
+   ```
+
+   Выдача прав на скрипты
+
+   ```bash
+   chmod 755 scripts/vlm/check_and_load_model.sh
+   chmod 755 scripts/vlm/run_test.sh
+   ```
+
+   Загрузка модели
+
+   ```bash
+   bash scripts/vlm/check_and_load_model.sh
+   ```
+
+   Скрипт автоматически:
+
+   - проверит наличие модели
+   - скачает Qwen3-VL-4B-Instruct при необходимости
+   - подготовит окружение
+
+4. **Проверка работы VLM**
+
+   ```bash
+   bash scripts/vlm/run_test.sh
+   ```
+
+5. **Запуск VLM API**
+
+   ```bash
+   docker exec -it hakaton-kion-vlm bash
+   python src/vlm/vlm_api.py
+   ```
+
+   **После запуска:**
+
+      - поднимается API-сервер
+      - модель загружается в память
+      - сервис готов принимать запросы от vlm_client.py
+
+   **⚠️ Важно:**
+
+      - сервер должен быть запущен до запуска основного пайплайна
+      - порт и хост задаются внутри vlm_api.py
+
+6. **Запуск основного пайплайна**
+
+   **В отдельном терминале:**
+
+   ```bash
+   docker exec -it hakaton-kion-mmaction2 bash
+   python scripts/vlm/infer_vlm.py
+   ```
+
+   **Взаимодействие сервисов**
+
+   - mmaction2 — обработка видео и скелетов
+   - vlm — VLM сервер (Qwen3-VL-4B-Instruct)
+   - взаимодействие происходит через API (vlm_api.py)
