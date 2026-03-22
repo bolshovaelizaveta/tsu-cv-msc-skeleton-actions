@@ -146,7 +146,8 @@ def main():
             else:
                 label = f"buffer {len(seq)}/{WINDOW_SIZE}"
             
-            cv2.rectangle(frame_with_actions, (x, y-25), (x+300, y), (0,0,0), -1)
+            # Убрала BBox для KION, они просили без рамок
+            # cv2.rectangle(frame_with_actions, (x, y-25), (x+300, y), (0,0,0), -1)
             cv2.putText(frame_with_actions, label, (x+5, y-7), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
         
