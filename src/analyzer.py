@@ -21,7 +21,7 @@ class GroupAnalyzer:
             centers.append(((box[0] + box[2]) / 2, (box[1] + box[3]) / 2))
             keypoints_list.append(p.get('keypoints', []))
 
-        # 1. Проверка геометрических фигур(Круг / Треугольник)
+        # 1. Проверка геометрических фигур (Круг / Треугольник)
         if n == 3:
             events.append("triangle_formation")
             
@@ -41,47 +41,49 @@ class GroupAnalyzer:
             if mean_dist > 0 and (std_dist / mean_dist) < 0.25:
                 events.append("circle_formation")
 
-        # 2. Перетягивание каната (Tug of War)
+        # 2. Перетягивание каната (Tug of War) или Митинг (Rally)
         if n >= 4:
-            # Проверяем, выстроены ли люди примерно в одну горизонтальную линию
+            # Проверяем горизонтальную линию
             y_coords = [c[1] for c in centers]
-            if np.std(y_coords) < 150: # Люди примерно на одной линии по высоте кадра
-                
-                # Сортируем людей слева направо по X
-                sorted_people = sorted(zip(centers, keypoints_list), key=lambda item: item[0][0])
-                
-                left_team_leaning_left = 0
-                right_team_leaning_right = 0
-                
-                mid_point = n // 2
-                
-                # Анализируем векторы тел 
-                # Точки YOLO: 5,6 - плечи, 11,12 - бедра
-                for i, (center, kpts) in enumerate(sorted_people):
-                    if len(kpts) < 13: continue
+            y_std = np.std(y_coords)
+            
+            if y_std < 100: # Люди выстроены в ряд (по высоте кадра разброс мал)
+                # Если людей умеренно (до 12) - проверяем на канат
+                if n <= 12:
+                    sorted_people = sorted(zip(centers, keypoints_list), key=lambda item: item[0][0])
+                    left_team_leaning = 0
+                    right_team_leaning = 0
+                    mid_point = n // 2
                     
-                    # Центр груди и центр таза
-                    chest_x = (kpts[5][0] + kpts[6][0]) / 2
-                    hip_x = (kpts[11][0] + kpts[12][0]) / 2
+                    for i, (center, kpts) in enumerate(sorted_people):
+                        if len(kpts) < 13: continue
+                        chest_x = (kpts[5][0] + kpts[6][0]) / 2
+                        hip_x = (kpts[11][0] + kpts[12][0]) / 2
+                        conf = min(kpts[5][2], kpts[11][2])
+                        if conf < 0.4: continue
+                        
+                        if i < mid_point: # Левые отклонены влево
+                            if chest_x < hip_x: left_team_leaning += 1
+                        else: # Правые отклонены вправо
+                            if chest_x > hip_x: right_team_leaning += 1
                     
-                    # Уверенность точек
-                    conf = min(kpts[5][2], kpts[11][2])
-                    if conf < 0.4: continue
-                    
-                    if i < mid_point: # Левая команда
-                        if chest_x < hip_x: # Грудная клетка левее бедер - отклонен назад
-                            left_team_leaning_left += 1
-                    else: # Правая команда
-                        if chest_x > hip_x: # Грудная клетка правее бедер - отклонен назад
-                            right_team_leaning_right += 1
-                            
-                # Если хотя бы по одному человеку в командах явно отклонены назад 
-                if left_team_leaning_left >= 1 and right_team_leaning_right >= 1:
-                    events.append("tug_of_war_candidate")
+                    if left_team_leaning >= 1 and right_team_leaning >= 1:
+                        events.append("tug_of_war_candidate")
+                
+                # Если людей очень много в ряд - это скорее митинг
+                if n > 12:
+                    events.append("rally_candidate")
 
-        # 3. Митинг / толпа (Gathering/Rally)
+        # 3. Митинг / толпа по плотности
         if n >= 6:
-            # Если людей много и они находятся близко друг к другу
-            events.append("rally_candidate")
+            # Считаем среднюю плотность (расстояние между всеми центрами)
+            all_dists = []
+            for i in range(n):
+                for j in range(i + 1, n):
+                    all_dists.append(self._get_distance(centers[i], centers[j]))
+            
+            # Если в среднем люди стоят очень кучно (менее 300 пикселей друг от друга)
+            if len(all_dists) > 0 and np.mean(all_dists) < 300:
+                events.append("rally_candidate")
 
         return list(set(events))

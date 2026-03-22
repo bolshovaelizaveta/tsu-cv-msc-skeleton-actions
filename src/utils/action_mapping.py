@@ -178,8 +178,33 @@ def resolve_target_class(ntu_predictions, last_sequence=None):
             scores["jump"] += 200.0  # Гарантированно выводим прыжки в топ
             scores["dance"] *= 0.1   # Глушим танцы для этого конкретного окна
 
-    final_class = max(scores, key=scores.get)
+    # Приоритет VLM 
+    if vlm_action:
+        v_act = vlm_action.lower()
+        if any(s in v_act for s in ["smoke", "smoking"]):
+            scores["smoking_candidate"] += 1000 
+        elif any(s in v_act for s in ["tug", "war", "rope"]):
+            scores["tug_of_war"] = 1000
+        elif any(s in v_act for s in ["rally", "meeting", "protest"]):
+            scores["meeting"] = 1000
+        elif any(s in v_act for s in ["circle", "triangle"]):
+            scores["circle_triangle"] = 1000
 
+    # Доп. эвристики 
+    if last_sequence is not None:
+        motion = compute_motion_energy(last_sequence)
+        if motion > 0.08:
+            scores["fight"] *= 1.35
+            scores["jump"] *= 1.15
+        else:
+            scores["smoking_candidate"] *= 1.2
+
+    total_frames = len(ntu_predictions)
+    if total_frames > 0 and (counter.get("cheer up", 0) / total_frames) > 0.8:
+        scores["jump"] += 200.0
+        scores["dance"] *= 0.1
+
+    final_class = max(scores, key=scores.get)
     return final_class, scores
 
 
