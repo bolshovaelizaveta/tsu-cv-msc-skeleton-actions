@@ -146,9 +146,9 @@ def main():
                     target_class = "handshake"
                 elif ntu_class_name == "walking towards each other":
                     target_class = "handshake"
-                elif ntu_class_name == "walking apart from each other":
+                elif ntu_class_name in ("walking apart from each other", "staggering"):
                     target_class = "walk"
-                elif ntu_class_name in ("hopping (one foot jumping)", "jump up"):
+                if ntu_class_name in ("hopping (one foot jumping)", "jump up", "cheer up"):
                     target_class = "jump"
                 elif ntu_class_name == "sitting down":
                     target_class = "sit"

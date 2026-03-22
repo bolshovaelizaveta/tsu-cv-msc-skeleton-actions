@@ -133,21 +133,20 @@ def main():
         
         # Триггер VLM: Групповые действия
         for event in group_events:
+            # Отрисовка (Круг/Треугольник/Митинг)
             if event in ["circle_formation", "triangle_formation", "rally_candidate"]:
                 cv2.putText(frame, f"MATH: {event.upper()}", (10, 90), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 100, 255), 2)
             
-            if event == "tug_of_war_candidate":
+            # Вызов VLM для всех подозрительных групп
+            if event in ["tug_of_war_candidate", "rally_candidate", "circle_formation", "triangle_formation"]:
                 if current_time - last_vlm_time > VLM_COOLDOWN:
+                    print(f"[{frame_num}] Trigger VLM: Group action check ({event})")
                     try:
-                        vlm_result = vlm.analyze(frame)
-                        print(f"[{frame_num}] VLM Group Verification: {vlm_result.get('action')}")
-                    except: pass
+                        vlm_result = vlm.analyze(frame) # Группы анализируем по всему кадру
+                    except Exception:
+                        pass
                     last_vlm_time = current_time
-
-        if vlm_result and vlm_result.get('success'):
-            cv2.putText(frame, f"VLM Confirmed: {vlm_result['action']}", 
-                       (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,255), 2)
         
         # Расчет FPS для экрана
         if frame_num - last_fps_frames >= 30:
