@@ -60,7 +60,7 @@ def main():
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
     
     width, height = int(cap.get(3)), int(cap.get(4))
-    writer = cv2.VideoWriter(f"outputs/{video_name}_output.mp4", 
+    writer = cv2.VideoWriter(f"results/{video_name}_output.mp4", 
                             cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
     
     frame_num = 0
@@ -169,7 +169,7 @@ def main():
     if raw_ntu_predictions:
         # Вызываем с учетом ответа VLM
         vlm_act = vlm_result.get('action') if vlm_result else None
-        final_class, scores = resolve_target_class(raw_ntu_predictions, vlm_action=vlm_act)
+        final_class, scores = resolve_target_class(raw_ntu_predictions)
 
         print("\n" + "="*40)
         print(f"SCENE ANALYSIS COMPLETE: {video_name}")
