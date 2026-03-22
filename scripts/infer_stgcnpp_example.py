@@ -146,14 +146,16 @@ def main():
                     target_class = "handshake"
                 elif ntu_class_name == "walking towards each other":
                     target_class = "handshake"
-                elif ntu_class_name == "walking apart from each other":
+                elif ntu_class_name in ("walking apart from each other", "staggering"): 
                     target_class = "walk"
-                elif ntu_class_name in ("hopping (one foot jumping)", "jump up"):
+                elif ntu_class_name in ("hopping (one foot jumping)", "jump up", "cheer up"): 
                     target_class = "jump"
-                elif ntu_class_name == "sitting down":
+                elif ntu_class_name in ("sitting down", "typing on a keyboard"): 
                     target_class = "sit"
                 elif ntu_class_name == "standing up":
                     target_class = "stand"
+                elif ntu_class_name in ("drink water", "brushing teeth", "make a phone call/answer phone", "wipe face", "touch head (headache)", "touch neck (neckache)", "take off glasses", "wear on glasses"):
+                    target_class = "smoking_candidate (vlm_trigger)"
 
                 ntu_predictions.append(ntu_class_name)
                 if target_class is not None:

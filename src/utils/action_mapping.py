@@ -29,20 +29,31 @@ DANCE_CLASSES = {
     "walking towards each other",
     "pat on back of other person",
     "hugging other person",
-    "cheer up",
+    "cheer up", 
 }
 
 JUMP_CLASSES = {
     "jump up",
     "hopping (one foot jumping)",
+    "cheer up",
+}
+
+# Этот класс исключительно проверять через vlm 
+SMOKING_CANDIDATE_CLASSES = { 
+    "drink water",
+    "brushing teeth",
+    "make a phone call/answer phone",
+    "wipe face"
 }
 
 WALK_CLASSES = {
     "walking apart from each other",
+    "staggering"
 }
 
 SIT_CLASSES = {
     "sitting down",
+    "typing on a keyboard"
 }
 
 STAND_CLASSES = {
@@ -103,6 +114,8 @@ def resolve_target_class(ntu_predictions, last_sequence=None):
     sit_score = sum(counter[c] for c in SIT_CLASSES if c in counter)
     stand_score = sum(counter[c] for c in STAND_CLASSES if c in counter)
 
+    smoking_candidate_score = sum(counter[c] for c in SMOKING_CANDIDATE_CLASSES if c in counter)
+
     scores = {
         "fight": fight_score,
         "hug": hug_score,
@@ -112,6 +125,7 @@ def resolve_target_class(ntu_predictions, last_sequence=None):
         "walk": walk_score,
         "sit": sit_score,
         "stand": stand_score,
+        "smoking_candidate": smoking_candidate_score * 1.2 # Вес больше, так как руки у лица часто сбиваются
     }
 
     # --- motion-based correction ---
@@ -123,10 +137,12 @@ def resolve_target_class(ntu_predictions, last_sequence=None):
             scores["fight"] *= 1.35
             scores["jump"] *= 1.15
             scores["dance"] *= 0.90
+            scores["smoking_candidate"] *= 0.5 # При сильном движении курение маловероятно
         else:
             # плавное движение поддерживает dance / hug
             scores["dance"] *= 1.15
             scores["hug"] *= 1.05
+            scores["smoking_candidate"] *= 1.2 # Статичное положение увеличивает шанс курения/питья
 
     # --- rule-based overrides ---
     punch_cnt = counter.get("punching/slapping other person", 0)
@@ -147,6 +163,16 @@ def resolve_target_class(ntu_predictions, last_sequence=None):
     # чтобы dance не доминировал на fight-сценах только из-за close-contact
     if aggressive_cnt > 10:
         scores["dance"] *= 0.7
+
+    # правило для jumping
+    total_frames = len(ntu_predictions)
+    if total_frames > 0:
+        cheer_up_percent = counter.get("cheer up", 0) / total_frames
+        
+        # Если "cheer up" составляет более 80% всего времени окна
+        if cheer_up_percent > 0.80:
+            scores["jump"] += 200.0  # Гарантированно выводим прыжки в топ
+            scores["dance"] *= 0.1   # Глушим танцы для этого конкретного окна
 
     final_class = max(scores, key=scores.get)
 
