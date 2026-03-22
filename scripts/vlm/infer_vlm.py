@@ -6,6 +6,7 @@ import json
 import yaml
 import time
 from collections import Counter
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -21,13 +22,25 @@ from src.analyzer import GroupAnalyzer
 POSE_MODEL = "models/yolo11m-pose.pt"
 STGCNPP_CONFIG = "configs/skeleton/stgcnpp/stgcnpp_8xb16-joint-u100-80e_ntu60-xsub-keypoint-2d.py"
 STGCNPP_CHECKPOINT = "models/stgcnpp_ntu60_xsub.pth"
-WINDOW_SIZE = 32
+WINDOW_SIZE = 10
 YOLO_SKIP = 5
 
 with open("configs/vlm/config.yaml", "r") as f:
     vlm_config = yaml.safe_load(f)["vlm"]
 
 os.makedirs(vlm_config.get("output_dir", "results/vlm"), exist_ok=True)
+
+def save_vlm_result(video_name, frame_num, call_type, vlm_result, results_list):
+    """Сохраняет результат VLM вызова в список"""
+    if vlm_result:
+        result_entry = {
+            'video': video_name,
+            'frame': frame_num,
+            'call_type': call_type,
+            'timestamp': datetime.now().isoformat(),
+            'result': vlm_result
+        }
+        results_list.append(result_entry)
 
 def main():
     if len(sys.argv) < 2:
@@ -66,9 +79,11 @@ def main():
     frame_num = 0
     raw_ntu_predictions = [] # Список для хранения всех предсказаний для финала
     vlm_result = None
+    vlm_calls = []  # Список для хранения всех VLM вызовов
     
     try:
         vlm_result = vlm.analyze(middle_frame)
+        save_vlm_result(video_name, middle_frame_num, "initial_frame", vlm_result, vlm_calls)
     except:
         pass
     
@@ -120,6 +135,7 @@ def main():
                             try:
                                 vlm_result = vlm.analyze(crop) 
                                 print(f"[{frame_num}] VLM Smoking Verification: {vlm_result.get('action')}")
+                                save_vlm_result(video_name, frame_num, "smoking_verification", vlm_result, vlm_calls)
                             except: pass
                         last_vlm_time = current_time
                 
@@ -144,6 +160,7 @@ def main():
                     print(f"[{frame_num}] Trigger VLM: Group action check ({event})")
                     try:
                         vlm_result = vlm.analyze(frame) # Группы анализируем по всему кадру
+                        save_vlm_result(video_name, frame_num, f"group_check_{event}", vlm_result, vlm_calls)
                     except Exception:
                         pass
                     last_vlm_time = current_time
@@ -164,11 +181,18 @@ def main():
     cap.release()
     writer.release()
     
+    # Сохраняем все VLM вызовы в JSON файл
+    if vlm_calls:
+        results_path = os.path.join(vlm_config.get("output_dir", "results/vlm"), f"{video_name}_vlm_calls.json")
+        with open(results_path, 'w') as f:
+            json.dump(vlm_calls, f, indent=2)
+        print(f"Saved {len(vlm_calls)} VLM calls to {results_path}")
+    
     # Расчет Accuracy
     if raw_ntu_predictions:
         # Вызываем с учетом ответа VLM
         vlm_act = vlm_result.get('action') if vlm_result else None
-        final_class, scores = resolve_target_class(raw_ntu_predictions)
+        final_class, scores = resolve_target_class(raw_ntu_predictions, vlm_action=vlm_act)
 
         print("\n" + "="*40)
         print(f"SCENE ANALYSIS COMPLETE: {video_name}")
@@ -184,6 +208,7 @@ def main():
         elif ground_truth == "jumping" and final_class == "jump": is_correct = True
         elif ground_truth == "walking" and final_class == "walk": is_correct = True
         elif ground_truth == "sitting" and final_class == "sit": is_correct = True
+        elif ground_truth == "rally" and final_class == "meeting": is_correct = True
         
         if is_correct:
             print(f">>> RESULT: [ CORRECT ] (GT: {ground_truth})")
