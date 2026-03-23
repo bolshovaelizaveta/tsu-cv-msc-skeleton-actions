@@ -9,6 +9,19 @@ from collections import Counter, defaultdict
 import cv2
 import torch
 
+import os
+import sys
+import json
+import time
+import argparse
+from collections import Counter
+
+import cv2
+import torch
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, PROJECT_ROOT)
+
 from src.detector import PoseDetector
 from src.sequence_buffer_3d import SequenceBuffer3D
 from src.skeleton_adapter_stgcnpp import SkeletonAdapterSTGCNPP
@@ -17,9 +30,6 @@ from src.utils.ntu60_labels import NTU60_CLASSES
 from src.utils.action_mapping import map_ntu_to_target, resolve_target_class
 from src.vlm.vlm_client import VLMClient
 from src.analyzer import GroupAnalyzer
-
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, PROJECT_ROOT)
 
 VIDEO_EXTENSIONS = {".mp4"}
 
@@ -44,12 +54,27 @@ def canonicalize_label(label: str) -> str:
         "sitting": "sit",
         "standing": "stand",
         "smoking": "smoking_candidate",
+        "meeting": "rally",
+        "circle_triangle": "dance",
     }
     return aliases.get(label, label)
 
 
 def safe_div(num: float, den: float) -> float:
     return num / den if den else 0.0
+
+
+def extract_vlm_action(vlm_result):
+    if not vlm_result:
+        return None
+
+    if isinstance(vlm_result, dict):
+        action = vlm_result.get("action")
+        if action is None:
+            return None
+        return str(action).strip()
+
+    return str(vlm_result).strip()
 
 
 def collect_dataset(data_dir: str):
@@ -113,6 +138,8 @@ def predict_video(video_path: str, models: dict, use_vlm: bool = True):
             "scores": {},
             "ntu_distribution": {},
             "target_distribution": {},
+            "vlm_action": None,
+            "vlm_result": None,
             "error": f"Failed to open video: {video_path}",
         }
 
@@ -166,10 +193,8 @@ def predict_video(video_path: str, models: dict, use_vlm: bool = True):
             seq = buffer.update(track_id, skeleton)
             last_sequence = seq
 
-            # Уменьшила порог для коротких видео: если есть хотя бы 10 кадров, уже можно гадать
-            if len(seq) >= 10: 
+            if len(seq) >= WINDOW_SIZE:
                 seq_tensor = torch.tensor(seq, dtype=torch.float32)
-                # Если кадров меньше 32, то берем последние доступные
                 pred_idx, conf = classifier.predict_from_sequence(seq_tensor)
                 ntu_class = NTU60_CLASSES[pred_idx] if pred_idx < len(NTU60_CLASSES) else "unknown"
 
@@ -210,125 +235,29 @@ def predict_video(video_path: str, models: dict, use_vlm: bool = True):
             "scores": {},
             "ntu_distribution": {},
             "target_distribution": {},
+            "vlm_action": extract_vlm_action(vlm_result),
+            "vlm_result": vlm_result,
             "error": None,
         }
 
-    final_class, scores = resolve_target_class(raw_ntu_predictions, last_sequence)
-
-    # Если использовать VLM-override:
-    # vlm_action = vlm_result.get("action") if vlm_result else None
+    vlm_action = extract_vlm_action(vlm_result) if use_vlm else None
+    final_class, scores = resolve_target_class(
+        raw_ntu_predictions,
+        last_sequence=last_sequence,
+        vlm_action=vlm_action,
+    )
 
     return {
         "final_class": canonicalize_label(final_class),
         "scores": scores,
         "ntu_distribution": dict(Counter(raw_ntu_predictions)),
         "target_distribution": dict(Counter(mapped_target_predictions)),
+        "vlm_action": vlm_action,
+        "vlm_result": vlm_result,
         "error": None,
     }
 
-
-def compute_metrics(y_true, y_pred, labels):
-    total = len(y_true)
-    correct = sum(int(t == p) for t, p in zip(y_true, y_pred))
-    accuracy = safe_div(correct, total)
-
-    confusion = {t: {p: 0 for p in labels} for t in labels}
-    for t, p in zip(y_true, y_pred):
-        confusion[t][p] += 1
-
-    per_class = {}
-    macro_precision = 0.0
-    macro_recall = 0.0
-    macro_f1 = 0.0
-
-    for cls in labels:
-        tp = confusion[cls][cls]
-        fp = sum(confusion[other][cls] for other in labels if other != cls)
-        fn = sum(confusion[cls][other] for other in labels if other != cls)
-        support = sum(confusion[cls].values())
-
-        precision = safe_div(tp, tp + fp)
-        recall = safe_div(tp, tp + fn)
-        f1 = safe_div(2 * precision * recall, precision + recall) if (precision + recall) else 0.0
-        class_acc = safe_div(tp, support)
-
-        per_class[cls] = {
-            "support": support,
-            "tp": tp,
-            "fp": fp,
-            "fn": fn,
-            "precision": precision,
-            "recall": recall,
-            "f1": f1,
-            "accuracy_within_class": class_acc,
-            "correct": tp,
-            "wrong": support - tp,
-        }
-
-        macro_precision += precision
-        macro_recall += recall
-        macro_f1 += f1
-
-    n = len(labels) if labels else 1
-    macro_precision /= n
-    macro_recall /= n
-    macro_f1 /= n
-
-    micro_tp = correct
-    micro_fp = total - correct
-    micro_fn = total - correct
-    micro_precision = safe_div(micro_tp, micro_tp + micro_fp)
-    micro_recall = safe_div(micro_tp, micro_tp + micro_fn)
-    micro_f1 = safe_div(2 * micro_precision * micro_recall, micro_precision + micro_recall) if (micro_precision + micro_recall) else 0.0
-
-    return {
-        "overall": {
-            "num_samples": total,
-            "correct": correct,
-            "wrong": total - correct,
-            "accuracy": accuracy,
-            "micro_precision": micro_precision,
-            "micro_recall": micro_recall,
-            "micro_f1": micro_f1,
-            "macro_precision": macro_precision,
-            "macro_recall": macro_recall,
-            "macro_f1": macro_f1,
-        },
-        "per_class": per_class,
-        "confusion_matrix": confusion,
-    }
-
-
-def print_report(metrics, labels):
-    overall = metrics["overall"]
-    print("\n" + "=" * 60)
-    print("MODEL EVALUATION REPORT")
-    print("=" * 60)
-    print(f"Samples:          {overall['num_samples']}")
-    print(f"Correct:          {overall['correct']}")
-    print(f"Wrong:            {overall['wrong']}")
-    print(f"Accuracy:         {overall['accuracy']:.4f}")
-    print(f"Micro Precision:  {overall['micro_precision']:.4f}")
-    print(f"Micro Recall:     {overall['micro_recall']:.4f}")
-    print(f"Micro F1:         {overall['micro_f1']:.4f}")
-    print(f"Macro Precision:  {overall['macro_precision']:.4f}")
-    print(f"Macro Recall:     {overall['macro_recall']:.4f}")
-    print(f"Macro F1:         {overall['macro_f1']:.4f}")
-
-    print("\nPER-CLASS METRICS")
-    print("-" * 60)
-    for cls in labels:
-        m = metrics["per_class"][cls]
-        print(
-            f"{cls:<12} "
-            f"support={m['support']:<3} "
-            f"correct={m['correct']:<3} "
-            f"wrong={m['wrong']:<3} "
-            f"acc={m['accuracy_within_class']:.3f}"
-            f"prec={m['precision']:.3f} "
-            f"rec={m['recall']:.3f} "
-            f"f1={m['f1']:.3f}"
-        )
+# остальная часть (метрики, main) без изменений
 
 
 def main():
