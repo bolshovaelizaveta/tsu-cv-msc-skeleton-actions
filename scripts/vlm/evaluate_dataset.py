@@ -166,8 +166,10 @@ def predict_video(video_path: str, models: dict, use_vlm: bool = True):
             seq = buffer.update(track_id, skeleton)
             last_sequence = seq
 
-            if len(seq) >= WINDOW_SIZE:
+            # Уменьшила порог для коротких видео: если есть хотя бы 10 кадров, уже можно гадать
+            if len(seq) >= 10: 
                 seq_tensor = torch.tensor(seq, dtype=torch.float32)
+                # Если кадров меньше 32, то берем последние доступные
                 pred_idx, conf = classifier.predict_from_sequence(seq_tensor)
                 ntu_class = NTU60_CLASSES[pred_idx] if pred_idx < len(NTU60_CLASSES) else "unknown"
 

@@ -22,7 +22,7 @@ from src.analyzer import GroupAnalyzer
 POSE_MODEL = "models/yolo11m-pose.pt"
 STGCNPP_CONFIG = "configs/skeleton/stgcnpp/stgcnpp_8xb16-joint-u100-80e_ntu60-xsub-keypoint-2d.py"
 STGCNPP_CHECKPOINT = "models/stgcnpp_ntu60_xsub.pth"
-WINDOW_SIZE = 10
+WINDOW_SIZE = 32
 YOLO_SKIP = 5
 
 with open("configs/vlm/config.yaml", "r") as f:

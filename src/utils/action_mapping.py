@@ -48,7 +48,8 @@ SMOKING_CANDIDATE_CLASSES = {
 
 WALK_CLASSES = {
     "walking apart from each other",
-    "staggering"
+    "staggering",
+    "nausea/vomiting condition" 
 }
 
 SIT_CLASSES = {
@@ -109,12 +110,35 @@ def resolve_target_class(ntu_predictions, last_sequence=None, vlm_action=None):
         counter.get("cheer up", 0) * 1.5
     )
 
-    jump_score = sum(counter[c] for c in JUMP_CLASSES if c in counter)
-    walk_score = sum(counter[c] for c in WALK_CLASSES if c in counter)
-    sit_score = sum(counter[c] for c in SIT_CLASSES if c in counter)
+    jump_score = (
+        counter.get("jump up", 0) * 10.0 + 
+        counter.get("hopping (one foot jumping)", 0) * 10.0 + 
+        counter.get("cheer up", 0) * 4.0
+    )
+
+    walk_score = (
+        counter.get("walking apart from each other", 0) * 4.0 +
+        counter.get("walking towards each other", 0) * 4.0 +
+        counter.get("staggering", 0) * 3.0 +
+        counter.get("nausea/vomiting condition", 0) * 2.0
+    )
+
+    sit_score = (
+        counter.get("sitting down", 0) * 5.0 +
+        counter.get("typing on a keyboard", 0) * 3.0 +
+        counter.get("reading", 0) * 2.0 +
+        counter.get("writing", 0) * 2.0
+    )
+
     stand_score = sum(counter[c] for c in STAND_CLASSES if c in counter)
 
-    smoking_candidate_score = sum(counter[c] for c in SMOKING_CANDIDATE_CLASSES if c in counter)
+    smoking_candidate_score = (
+        counter.get("drink water", 0) * 4.0 +
+        counter.get("make a phone call/answer phone", 0) * 4.0 +
+        counter.get("brushing teeth", 0) * 3.0 +
+        counter.get("wipe face", 0) * 3.0 +
+        counter.get("touch head (headache)", 0) * 2.0
+    )
 
     scores = {
         "fight": fight_score,
@@ -135,13 +159,15 @@ def resolve_target_class(ntu_predictions, last_sequence=None, vlm_action=None):
         # высокая энергия поддерживает fight / jump
         if motion > 0.08:
             scores["fight"] *= 1.35
-            scores["jump"] *= 1.15
+            scores["jump"] *= 1.5
             scores["dance"] *= 0.90
+            scores["walk"] *= 1.2
             scores["smoking_candidate"] *= 0.5 # При сильном движении курение маловероятно
         else:
             # плавное движение поддерживает dance / hug
             scores["dance"] *= 1.15
             scores["hug"] *= 1.05
+            scores["sit"] *= 1.3
             scores["smoking_candidate"] *= 1.2 # Статичное положение увеличивает шанс курения/питья
 
     # --- rule-based overrides ---
@@ -167,12 +193,10 @@ def resolve_target_class(ntu_predictions, last_sequence=None, vlm_action=None):
     # правило для jumping
     total_frames = len(ntu_predictions)
     if total_frames > 0:
-        cheer_up_percent = counter.get("cheer up", 0) / total_frames
-        
-        # Если "cheer up" составляет более 80% всего времени окна
-        if cheer_up_percent > 0.80:
-            scores["jump"] += 200.0  # Гарантированно выводим прыжки в топ
-            scores["dance"] *= 0.1   # Глушим танцы для этого конкретного окна
+        jumping_total_percent = (counter.get("cheer up", 0) + counter.get("jump up", 0)) / total_frames
+        if jumping_total_percent > 0.15: 
+            scores["jump"] += 400.0  
+            scores["dance"] *= 0.1
 
     # --- Приоритет VLM (Больше синонимов, чтобы точно поймать ответ) ---
     if vlm_action:
