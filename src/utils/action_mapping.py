@@ -136,9 +136,10 @@ def resolve_target_class(ntu_predictions, last_sequence=None, vlm_action=None):
 
     sit_score = (
         counter.get("sitting down", 0) * 5.0 +
-        counter.get("typing on a keyboard", 0) * 3.0 +
-        counter.get("reading", 0) * 2.0 +
-        counter.get("writing", 0) * 2.0
+        counter.get("typing on a keyboard", 0) * 1.0 +
+        counter.get("playing with phone/tablet", 0) * 1.0 +
+        counter.get("reading", 0) * 1.0 +
+        counter.get("writing", 0) * 1.0
     )
 
     stand_score = sum(counter[c] for c in STAND_CLASSES if c in counter)
