@@ -156,8 +156,7 @@ def main():
                     target_class = "stand"
                 elif ntu_class_name in ("drink water", "brushing teeth", "make a phone call/answer phone", "wipe face", "touch head (headache)", "touch neck (neckache)", "take off glasses", "wear on glasses"):
                     target_class = "smoking_candidate (vlm_trigger)"
-                elif ntu_class_name in (
-                "sitting down", "typing on a keyboard", "reading", "writing", "playing with phone/tablet"):
+                elif ntu_class_name in ("sitting down", "typing on a keyboard", "reading", "writing", "playing with phone/tablet"):
                     target_class = "sit"
 
                 ntu_predictions.append(ntu_class_name)

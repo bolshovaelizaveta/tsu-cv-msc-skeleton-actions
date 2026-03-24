@@ -49,7 +49,10 @@ WALK_CLASSES = {
 
 SIT_CLASSES = {
     "sitting down",
-    "typing on a keyboard"
+    "typing on a keyboard",
+    "playing with phone/tablet",
+    "reading",
+    "writing"
 }
 
 STAND_CLASSES = {
