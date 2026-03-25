@@ -2,7 +2,7 @@ services:
   mmaction2:
     build:
       context: .
-      dockerfile: docker/Dockerfile.mmaction2
+      dockerfile: deploy/docker/Dockerfile.mmaction2 
     container_name: hakaton-kion-mmaction2
     runtime: nvidia
     environment:
@@ -18,7 +18,7 @@ services:
       - ./src:/app/src
       - ./configs:/app/configs
       - ./training:/app/training
-      - ./docker/requirements_mmaction2.txt:/app/requirements.txt
+      - ./deploy/docker/requirements_mmaction2.txt:/app/requirements.txt 
     shm_size: 16g
     deploy:
       resources:
@@ -35,7 +35,7 @@ services:
   vlm:
     build:
       context: .
-      dockerfile: docker/Dockerfile.vlm
+      dockerfile: deploy/docker/Dockerfile.vlm 
     container_name: hakaton-kion-vlm
     runtime: nvidia
     environment:
@@ -53,7 +53,7 @@ services:
       - ./src:/app/src
       - ./configs:/app/configs
       - ./training:/app/training
-      - ./docker/requirements_vlm.txt:/app/requirements.txt
+      - ./deploy/docker/requirements_vlm.txt:/app/requirements.txt
     shm_size: 16g
     deploy:
       resources:

@@ -19,12 +19,15 @@ from collections import Counter
 import cv2
 import torch
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, PROJECT_ROOT)
+# Вычисляем корень проекта 
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 from src.detector import PoseDetector
-from src.sequence_buffer_3d import SequenceBuffer3D
-from src.skeleton_adapter_stgcnpp import SkeletonAdapterSTGCNPP
+from src.utils.sequence_buffer_3d import SequenceBuffer3D
+from src.utils.skeleton_adapter_stgcnpp import SkeletonAdapterSTGCNPP
 from src.classifiers.stgcnpp_classifier import STGCNPPClassifier
 from src.utils.ntu60_labels import NTU60_CLASSES
 from src.utils.action_mapping import map_ntu_to_target, resolve_target_class

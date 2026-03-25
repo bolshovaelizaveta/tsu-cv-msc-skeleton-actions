@@ -33,16 +33,10 @@ outputs/*
 *.mp4
 *.avi
 *.mov
-*.json
 runs/
 
 # Logs
 *.log
-
-# Результаты работы (видео и скриншоты)
-results/
-data/*.mp4
-data/*.json
 
 # Внешние тяжелые библиотеки и зависимости
 mmaction2/
