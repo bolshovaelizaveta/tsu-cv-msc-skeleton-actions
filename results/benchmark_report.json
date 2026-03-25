@@ -1,0 +1,60 @@
+{
+    "overall_avg_fps": 97.55,
+    "per_class": {
+        "smoking_candidate": {
+            "f1": 0.7692,
+            "precision": 1.0,
+            "recall": 0.625
+        },
+        "meeting": {
+            "f1": 0.9565,
+            "precision": 0.9167,
+            "recall": 1.0
+        },
+        "fight": {
+            "f1": 0.7059,
+            "precision": 0.75,
+            "recall": 0.6667
+        },
+        "tug_of_war": {
+            "f1": 0.9524,
+            "precision": 1.0,
+            "recall": 0.9091
+        },
+        "jump": {
+            "f1": 0.875,
+            "precision": 0.875,
+            "recall": 0.875
+        },
+        "hug": {
+            "f1": 0.0,
+            "precision": 0.0,
+            "recall": 0.0
+        },
+        "handshake": {
+            "f1": 0.6667,
+            "precision": 1.0,
+            "recall": 0.5
+        },
+        "circle_triangle": {
+            "f1": 0.7059,
+            "precision": 1.0,
+            "recall": 0.5455
+        },
+        "sit": {
+            "f1": 0.8889,
+            "precision": 0.8,
+            "recall": 1.0
+        },
+        "dance": {
+            "f1": 0.8182,
+            "precision": 0.6923,
+            "recall": 1.0
+        },
+        "walk": {
+            "f1": 0.5333,
+            "precision": 0.5,
+            "recall": 0.5714
+        }
+    }
+}

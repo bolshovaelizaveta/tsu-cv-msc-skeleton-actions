@@ -1,5 +1,29 @@
-ultralytics
+# --- Базовые зависимости ---
+numpy<2.0.0
 opencv-python
-numpy
-coremltools
-collections
+pillow
+pyyaml
+tqdm
+flask
+requests
+pandas
+scikit-learn
+
+# --- Детекция и Позы (YOLO11) ---
+ultralytics>=8.3.0
+
+# --- Скелетная анимация (ST-GCN++ / MMAction2) ---
+# Для Mac/Windows (CPU) ставим mmcv-lite
+mmcv>=2.1.0
+mmengine
+mmaction>=1.2.0
+
+# --- Видео и математика ---
+decord
+av
+scipy
+
+# --- VLM (Qwen2-VL) ---
+transformers>=4.45.0
+accelerate
+qwen-vl-utils

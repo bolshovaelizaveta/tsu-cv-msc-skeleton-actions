@@ -1,0 +1,68 @@
+services:
+  mmaction2:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.mmaction2 
+    container_name: hakaton-kion-mmaction2
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+      - TORCH_HOME=/app/cache/torch
+      - HF_HOME=/app/cache/huggingface
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./results:/app/results
+      - ./scripts:/app/scripts
+      - ./src:/app/src
+      - ./configs:/app/configs
+      - ./training:/app/training
+      - ./deploy/docker/requirements_mmaction2.txt:/app/requirements.txt 
+    shm_size: 16g
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    working_dir: /app
+
+  vlm:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.vlm 
+    container_name: hakaton-kion-vlm
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_HOME=/app/cache/huggingface
+      - HUGGINGFACE_HUB_CACHE=/app/cache/huggingface
+      - TRANSFORMERS_CACHE=/app/cache/huggingface
+      - TORCH_HOME=/app/cache/torch
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./results:/app/results
+      - ./scripts:/app/scripts
+      - ./src:/app/src
+      - ./configs:/app/configs
+      - ./training:/app/training
+      - ./deploy/docker/requirements_vlm.txt:/app/requirements.txt
+    shm_size: 16g
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    working_dir: /app
